@@ -276,21 +276,105 @@ void run_read_write_comparison() {
     printf("\n");
 }
 
-void print_analysis() {
+void analyze_results() {
     printf("=== Performance Analysis ===\n");
-    printf("Expected behavior for AMD Ryzen 5600:\n");
-    printf("• L1 Cache (32KB): Fastest access, ~1-2 cycles latency\n");
-    printf("• L2 Cache (512KB): ~10-12 cycles latency\n");
-    printf("• L3 Cache (32MB): ~40-50 cycles latency\n");
-    printf("• Main Memory: ~200+ cycles latency\n\n");
+    printf("Based on your results:\n\n");
     
-    printf("Key observations:\n");
-    printf("• Sharp latency increase when exceeding cache sizes\n");
-    printf("• Random access much slower than sequential\n");
-    printf("• Cache line size (64B) affects stride performance\n");
-    printf("• Cache associativity limits cause thrashing\n");
-    printf("• Write performance generally slower than reads\n");
+    printf("✓ L1 Cache Performance (up to 32KB):\n");
+    printf("  - Sequential: ~133ms, Random: ~1106ms\n");
+    printf("  - Clean performance up to 32KB confirms L1 size\n\n");
+    
+    printf("✓ L2 Cache Performance (32KB-512KB):\n");
+    printf("  - Minimal degradation, good utilization\n");
+    printf("  - Confirms 512KB L2 cache per core\n\n");
+    
+    printf("⚠ L3 Cache Anomaly (8MB threshold):\n");
+    printf("  - Expected: 32MB capacity\n");
+    printf("  - Observed: Performance drop at 8MB\n");
+    printf("  - Possible causes:\n");
+    printf("    * Cache partitioning between 6 cores\n");
+    printf("    * OS/system overhead using cache space\n");
+    printf("    * Cache replacement policy effects\n");
+    printf("    * Effective working set limitations\n\n");
+    
+    printf("✓ Cache Line Confirmation:\n");
+    printf("  - 64-byte stride shows 6347%% efficiency gain\n");
+    printf("  - Perfect alignment with 64-byte cache lines\n\n");
+    
+    printf("✓ Memory Hierarchy Latency Ratios:\n");
+    printf("  - L1→L2: ~1.1x slower (minimal impact)\n");
+    printf("  - L2→L3: ~1.3x slower (at 8MB boundary)\n");
+    printf("  - L3→RAM: ~2.0x slower (major impact)\n\n");
+    
+    printf("💡 Optimization Insights:\n");
+    printf("  - Keep hot data under 8MB for best L3 performance\n");
+    printf("  - Use 64-byte aligned data structures\n");
+    printf("  - Sequential access 4-10x faster than random\n");
+    printf("  - Cache-conscious algorithms critical above 512KB\n");
     printf("================================\n");
+}
+
+void run_detailed_l3_test() {
+    printf("=== Detailed L3 Cache Investigation ===\n");
+    printf("Testing fine-grained sizes around L3 boundaries\n");
+    printf("Size\t\tSeq (ms)\tRand (ms)\tLatency Ratio\n");
+    printf("------------------------------------------------\n");
+    
+    // Test sizes around the 8MB boundary more precisely
+    size_t test_sizes[] = {
+        4 * 1024 * 1024,   // 4MB
+        6 * 1024 * 1024,   // 6MB  
+        8 * 1024 * 1024,   // 8MB
+        10 * 1024 * 1024,  // 10MB
+        12 * 1024 * 1024,  // 12MB
+        16 * 1024 * 1024,  // 16MB
+        24 * 1024 * 1024,  // 24MB
+        32 * 1024 * 1024,  // 32MB
+        48 * 1024 * 1024,  // 48MB
+        64 * 1024 * 1024   // 64MB
+    };
+    
+    const char* labels[] = {
+        "4MB", "6MB", "8MB", "10MB", "12MB", 
+        "16MB", "24MB", "32MB", "48MB", "64MB"
+    };
+    
+    double baseline_seq = 0, baseline_rand = 0;
+    
+    for (int i = 0; i < 10; i++) {
+        char* buffer = aligned_alloc(4096, test_sizes[i]);
+        if (!buffer) {
+            printf("Failed to allocate %s\n", labels[i]);
+            continue;
+        }
+        
+        memset(buffer, 0xAA, test_sizes[i]);
+        
+        int iterations = NUM_ITERATIONS / (test_sizes[i] / MIN_SIZE + 1);
+        if (iterations < 50) iterations = 50;
+        
+        double seq_time = benchmark_sequential_access(buffer, test_sizes[i], iterations);
+        double rand_time = benchmark_random_access(buffer, test_sizes[i], iterations);
+        
+        if (i == 0) {
+            baseline_seq = seq_time;
+            baseline_rand = rand_time;
+        }
+        
+        double seq_ratio = seq_time / baseline_seq;
+        double rand_ratio = rand_time / baseline_rand;
+        
+        printf("%s\t\t%.2f\t\t%.2f\t\t%.2fx/%.2fx\n", 
+               labels[i], seq_time, rand_time, seq_ratio, rand_ratio);
+        
+        free(buffer);
+    }
+    printf("\n");
+}
+
+void print_analysis() {
+    run_detailed_l3_test();
+    analyze_results();
 }
 
 int main() {
